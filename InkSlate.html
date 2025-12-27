@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>InkSlate Pro v3.2 — Sidebars Fixed</title>
+<style>
+:root { --bg:#ffffff; --fg:#000000; --line:#666; }
+.dark-theme { --bg:#000000; --fg:#ffffff; --line:#aaa; }
+
+html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; font-family:sans-serif; background:var(--bg); color:var(--fg); }
+
+/* START PAGE */
+#start-page { position:fixed; inset:0; z-index:200; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; background:var(--bg); }
+.template-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:30px 0; }
+.temp-btn { width:130px; height:130px; border:3px solid var(--fg); background:var(--bg); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:1.2rem; }
+input[type="text"] { font-size:1.3rem; padding:15px; border:3px solid var(--fg); width:280px; text-align:center; background:var(--bg); color:var(--fg); border-radius:8px; }
+.mode-toggle { padding:20px 40px; border:4px solid var(--fg); font-weight:bold; cursor:pointer; font-size:1.1rem; margin-bottom:20px; border-radius:10px; }
+
+/* CANVAS AREA */
+#canvas-container { position:relative; width:100vw; height:100vh; touch-action:none; background:var(--bg); }
+
+/* TEMPLATE BACKGROUND */
+#template-bg { position:absolute; inset:0; z-index:0; background-color:var(--bg); }
+
+/* TEMPLATES */
+.pattern-lines {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        var(--bg) 0px,
+        var(--bg) 34px,
+        var(--line) 34px,
+        var(--line) 35px
+    );
+}
+.pattern-squares {
+    background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:40px 40px;
+}
+.pattern-dots {
+    background-image: radial-gradient(var(--line) 1.5px, transparent 1.6px);
+    background-size:40px 40px;
+}
+
+/* canvases above template */
+canvas { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; background:transparent; }
+
+/* FLOATING BARS */
+.bar-trigger { position:fixed; top:50%; transform:translateY(-50%); width:45px; height:100px; background:#ddd; border:2px solid #000; color:#000; display:flex; align-items:center; justify-content:center; z-index:150; font-weight:bold; cursor:pointer; user-select:none; }
+#left-trigger { left:0; border-radius:0 15px 15px 0; }
+#right-trigger { right:0; border-radius:15px 0 0 15px; }
+
+.side-bar {
+    position:fixed;
+    top:0;
+    height:100%;
+    width:110px;
+    background:white;
+    border-left:2px solid black;
+    border-right:2px solid black;
+    display:none; /* toggled to flex via JS */
+    flex-direction:column;
+    align-items:center;
+    padding-top:15px;
+    z-index:160;
+    box-shadow:0 0 20px rgba(0,0,0,0.1);
+}
+#left-bar { left:0; }
+#right-bar { right:0; }
+
+.tool-btn { width:90px; height:60px; border:2px solid black; background:white; font-size:11px; font-weight:bold; margin-bottom:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:5px; }
+.active-tool { background:black !important; color:white !important; }
+.section-label { font-size:10px; margin:10px 0 5px 0; font-weight:bold; letter-spacing:1px; color:#444; }
+.bottom-btn { margin-top:auto; margin-bottom:25px; background:#eee; cursor:pointer; }
+
+/* MENU POPUP */
+#menu-popup { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; z-index:500; }
+#menu-popup .box { background:white; border:3px solid black; padding:20px; width:260px; text-align:center; font-weight:bold; }
+#menu-popup button { padding:10px; flex:1; }
+
+/* small helper for non-selectable UI */
+.no-select { -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; }
+</style>
+</head>
+<body>
+
+<!-- START PAGE -->
+<div id="start-page" class="no-select">
+    <h1>InkSlate</h1>
+    <div class="mode-toggle" id="theme-switcher">MODE: LIGHT</div>
+    <input type="text" id="drawing-name" placeholder="Name your drawing...">
+    <div class="template-grid">
+        <div class="temp-btn" id="btn-blank">BLANK</div>
+        <div class="temp-btn" id="btn-lines">LINES</div>
+        <div class="temp-btn" id="btn-squares">SQUARES</div>
+        <div class="temp-btn" id="btn-dots">DOTS</div>
+    </div>
+</div>
+
+<!-- CANVAS + UI -->
+<div id="canvas-container">
+    <div id="template-bg"></div>
+
+    <div id="left-trigger" class="bar-trigger">▶</div>
+    <div id="right-trigger" class="bar-trigger">◀</div>
+
+    <div id="left-bar" class="side-bar">
+        <div class="section-label">TOOLS</div>
+        <div class="tool-btn active-tool" id="pen-btn">PEN</div>
+        <div class="tool-btn" id="eraser-btn">ERASER</div>
+        <div class="tool-btn" id="text-btn">ADD TEXT</div>
+
+        <div class="section-label">SHAPES</div>
+        <div class="tool-btn" id="line-btn">LINE</div>
+        <div class="tool-btn" id="rect-btn">SQUARE</div>
+        <div class="tool-btn" id="circle-btn">CIRCLE</div>
+
+        <div class="section-label">STYLE</div>
+        <div class="tool-btn" id="size-display">SIZE: 2px</div>
+        <div class="tool-btn bottom-btn" id="left-close">CLOSE</div>
+    </div>
+
+    <div id="right-bar" class="side-bar">
+        <div class="section-label">LAYERS</div>
+        <div class="tool-btn active-tool" id="l1-btn">LAYER 1</div>
+        <div class="tool-btn" id="l2-btn">LAYER 2</div>
+
+        <div class="section-label">PAGES</div>
+        <div class="tool-btn active-tool" id="p1-btn">PAGE 1</div>
+        <div class="tool-btn" id="p2-btn">PAGE 2</div>
+
+        <div class="section-label">ACTIONS</div>
+        <div class="tool-btn" id="clear-btn" style="background:#ffd9d9">CLEAR</div>
+        <div class="tool-btn" id="save-btn" style="background:#d9ffd9">SAVE PNG</div>
+        <div class="tool-btn" id="menu-btn" style="background:#e0e0ff">MENU</div>
+        <div class="tool-btn bottom-btn" id="right-close">CLOSE</div>
+    </div>
+
+    <canvas id="layer0"></canvas>
+    <canvas id="layer1"></canvas>
+</div>
+
+<!-- MENU CONFIRM POPUP -->
+<div id="menu-popup">
+    <div class="box">
+        <p>Return to main menu?</p>
+        <p style="font-size:12px;font-weight:normal">Drawing will be kept in memory.</p>
+        <div style="display:flex;gap:10px;margin-top:15px;">
+            <button id="menu-confirm">YES</button>
+            <button id="menu-cancel">NO</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* DOM refs */
+const startPage = document.getElementById('start-page');
+const canvasContainer = document.getElementById('canvas-container');
+const templateBg = document.getElementById('template-bg');
+const themeSwitcher = document.getElementById('theme-switcher');
+const drawingName = document.getElementById('drawing-name');
+
+const leftTrigger = document.getElementById('left-trigger');
+const rightTrigger = document.getElementById('right-trigger');
+const leftBar = document.getElementById('left-bar');
+const rightBar = document.getElementById('right-bar');
+
+const leftClose = document.getElementById('left-close');
+const rightClose = document.getElementById('right-close');
+
+const menuBtn = document.getElementById('menu-btn');
+const menuPopup = document.getElementById('menu-popup');
+const menuConfirm = document.getElementById('menu-confirm');
+const menuCancel = document.getElementById('menu-cancel');
+
+const canvases = [
+    document.getElementById('layer0'),
+    document.getElementById('layer1')
+];
+const ctxs = canvases.map(c => c.getContext('2d'));
+
+/* state */
+let currentLayer = 0;
+let currentPage = 0;
+let pageData = [[null,null],[null,null]];
+let tool = 'pen';
+let strokeSize = 2;
+let isDark = false;
+let drawing = false;
+let startX = 0, startY = 0;
+
+/* drawing + UI helpers */
+function updateCtxStyles() {
+    ctxs.forEach(ctx => {
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = strokeSize;
+        ctx.strokeStyle = isDark ? '#ffffff' : '#000000';
+        ctx.fillStyle = isDark ? '#ffffff' : '#000000';
+        ctx.font = "24px Arial";
+    });
+}
+
+function initCanvasSize() {
+    canvases.forEach(c => {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        if (c.width !== w || c.height !== h) {
+            c.width = w;
+            c.height = h;
+        }
+    });
+    updateCtxStyles();
+    // redraw current page if stored
+    ctxs.forEach((ctx, layerIndex) => {
+        ctx.clearRect(0,0,canvases[layerIndex].width,canvases[layerIndex].height);
+        const data = pageData[currentPage][layerIndex];
+        if (data) {
+            const img = new Image();
+            img.src = data;
+            img.onload = () => ctx.drawImage(img, 0, 0);
+        }
+    });
+}
+
+/* Theme and templates */
+function toggleTheme() {
+    isDark = !isDark;
+    document.body.classList.toggle('dark-theme', isDark);
+    themeSwitcher.textContent = isDark ? "MODE: DARK" : "MODE: LIGHT";
+    updateCtxStyles();
+}
+
+function startApp(template) {
+    startPage.style.display = 'none';
+    canvasContainer.style.display = 'block';
+    templateBg.className = '';
+    if (template && template !== 'blank') templateBg.classList.add(template);
+    initCanvasSize();
+}
+
+/* Sidebars: toggle and close */
+function toggleBar(el) {
+    // el may be element or id string
+    const bar = (typeof el === 'string') ? document.getElementById(el) : el;
+    if (!bar) return;
+    const isOpen = bar.style.display === 'flex';
+    // close both first if opening the opposite (optional improvement)
+    // but keep simple: toggle the targeted bar
+    bar.style.display = isOpen ? 'none' : 'flex';
+    // ensure flex direction
+    if (!isOpen) bar.style.flexDirection = 'column';
+}
+
+function closeAllBars() {
+    leftBar.style.display = 'none';
+    rightBar.style.display = 'none';
+}
+
+/* Close when clicking outside */
+function onPointerDownCloseBars(e) {
+    // if popup is visible, don't auto-close bars (let popup handle)
+    if (menuPopup.style.display === 'flex') return;
+
+    const target = e.target;
+    // if clicked inside a sidebar or on a trigger, do nothing
+    if (target.closest && (target.closest('#left-bar') || target.closest('#right-bar') || target.closest('.bar-trigger'))) {
+        return;
+    }
+    // otherwise close
+    closeAllBars();
+}
+
+/* Tools / layers / pages */
+function setTool(newTool) {
+    tool = newTool;
+    leftBar.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active-tool'));
+    const btn = document.getElementById(newTool + '-btn');
+    if (btn) btn.classList.add('active-tool');
+}
+
+function toggleSize() {
+    strokeSize = (strokeSize === 2) ? 6 : (strokeSize === 6) ? 14 : 2;
+    document.getElementById('size-display').innerText = `SIZE: ${strokeSize}px`;
+    updateCtxStyles();
+}
+
+function setLayer(index) {
+    currentLayer = index;
+    document.getElementById('l1-btn').classList.toggle('active-tool', index === 0);
+    document.getElementById('l2-btn').classList.toggle('active-tool', index === 1);
+    canvases[0].style.opacity = (index === 0) ? "1.0" : "0.3";
+    canvases[1].style.opacity = (index === 1) ? "1.0" : "0.3";
+}
+
+function setPage(index) {
+    // save current
+    pageData[currentPage][0] = canvases[0].toDataURL();
+    pageData[currentPage][1] = canvases[1].toDataURL();
+    ctxs.forEach(ctx => ctx.clearRect(0,0,canvases[0].width,canvases[0].height));
+    currentPage = index;
+    [0,1].forEach(layerIndex => {
+        const data = pageData[currentPage][layerIndex];
+        if (data) {
+            const img = new Image();
+            img.src = data;
+            img.onload = () => ctxs[layerIndex].drawImage(img, 0, 0);
+        }
+    });
+    document.getElementById('p1-btn').classList.toggle('active-tool', index === 0);
+    document.getElementById('p2-btn').classList.toggle('active-tool', index === 1);
+}
+
+/* Pointer helpers for drawing */
+function getPos(e) {
+    const rect = canvases[currentLayer].getBoundingClientRect();
+    let clientX = e.clientX, clientY = e.clientY;
+    if (e.touches && e.touches.length) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches.length) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+    }
+    return { x: clientX - rect.left, y: clientY - rect.top };
+}
+
+/* Drawing lifecycle */
+function startDraw(e) {
+    // don't start drawing if pointer is on a sidebar or trigger
+    if (e.target.closest && (e.target.closest('.side-bar') || e.target.closest('.bar-trigger'))) return;
+    drawing = true;
+    const pos = getPos(e);
+    startX = pos.x; startY = pos.y;
+    const ctx = ctxs[currentLayer];
+    if (tool === 'pen' || tool === 'eraser') {
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+    }
+}
+
+function draw(e) {
+    if (!drawing) return;
+    const pos = getPos(e);
+    const ctx = ctxs[currentLayer];
+    ctx.globalCompositeOperation = (tool === 'eraser') ? 'destination-out' : 'source-over';
+    if (tool === 'pen' || tool === 'eraser') {
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }
+}
+
+function stopDraw(e) {
+    if (!drawing) return;
+    drawing = false;
+    const pos = getPos(e);
+    const ctx = ctxs[currentLayer];
+    ctx.globalCompositeOperation = 'source-over';
+    if (tool === 'text') {
+        const txt = prompt("Write here:");
+        if (txt) ctx.fillText(txt, startX, startY);
+    } else if (tool === 'line') {
+        ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    } else if (tool === 'rect') {
+        ctx.strokeRect(startX, startY, pos.x - startX, pos.y - startY);
+    } else if (tool === 'circle') {
+        const radius = Math.hypot(pos.x - startX, pos.y - startY);
+        ctx.beginPath(); ctx.arc(startX, startY, radius, 0, Math.PI*2); ctx.stroke();
+    } else {
+        try { ctx.closePath(); } catch {}
+    }
+}
+
+/* Actions */
+function clearPage() {
+    if (!confirm("Wipe this page clean?")) return;
+    ctxs.forEach(ctx => ctx.clearRect(0,0,canvases[0].width,canvases[0].height));
+    pageData[currentPage] = [null,null];
+}
+
+function saveImage() {
+    const temp = document.createElement('canvas');
+    temp.width = canvases[0].width;
+    temp.height = canvases[0].height;
+    const tctx = temp.getContext('2d');
+    tctx.fillStyle = isDark ? "black" : "white";
+    tctx.fillRect(0,0,temp.width,temp.height);
+    tctx.drawImage(canvases[0], 0, 0);
+    tctx.drawImage(canvases[1], 0, 0);
+    const link = document.createElement('a');
+    const name = (drawingName.value || 'note').replace(/\s+/g,'_');
+    link.download = `${name}.png`;
+    link.href = temp.toDataURL('image/png');
+    link.click();
+}
+
+/* Menu popup */
+function openMenuPopup() { menuPopup.style.display = 'flex'; }
+function closeMenuPopup() { menuPopup.style.display = 'none'; }
+function goToMenu() {
+    pageData[currentPage][0] = canvases[0].toDataURL();
+    pageData[currentPage][1] = canvases[1].toDataURL();
+    canvasContainer.style.display = 'none';
+    startPage.style.display = 'flex';
+    closeMenuPopup();
+}
+
+/* wiring UI events */
+themeSwitcher.addEventListener('click', toggleTheme);
+
+document.getElementById('btn-blank').addEventListener('click', () => startApp('blank'));
+document.getElementById('btn-lines').addEventListener('click', () => startApp('pattern-lines'));
+document.getElementById('btn-squares').addEventListener('click', () => startApp('pattern-squares'));
+document.getElementById('btn-dots').addEventListener('click', () => startApp('pattern-dots'));
+
+/* sidebar triggers */
+leftTrigger.addEventListener('click', () => toggleBar(leftBar));
+rightTrigger.addEventListener('click', () => toggleBar(rightBar));
+
+leftClose.addEventListener('click', () => toggleBar(leftBar));
+rightClose.addEventListener('click', () => toggleBar(rightBar));
+
+/* tool buttons */
+document.getElementById('pen-btn').addEventListener('click', () => setTool('pen'));
+document.getElementById('eraser-btn').addEventListener('click', () => setTool('eraser'));
+document.getElementById('text-btn').addEventListener('click', () => setTool('text'));
+document.getElementById('line-btn').addEventListener('click', () => setTool('line'));
+document.getElementById('rect-btn').addEventListener('click', () => setTool('rect'));
+document.getElementById('circle-btn').addEventListener('click', () => setTool('circle'));
+
+document.getElementById('size-display').addEventListener('click', toggleSize);
+
+/* layers/pages/actions */
+document.getElementById('l1-btn').addEventListener('click', () => setLayer(0));
+document.getElementById('l2-btn').addEventListener('click', () => setLayer(1));
+document.getElementById('p1-btn').addEventListener('click', () => setPage(0));
+document.getElementById('p2-btn').addEventListener('click', () => setPage(1));
+
+document.getElementById('clear-btn').addEventListener('click', clearPage);
+document.getElementById('save-btn').addEventListener('click', saveImage);
+
+/* menu wiring */
+menuBtn.addEventListener('click', openMenuPopup);
+menuCancel.addEventListener('click', closeMenuPopup);
+menuConfirm.addEventListener('click', goToMenu);
+
+/* drawing pointer events */
+window.addEventListener('mousedown', startDraw);
+window.addEventListener('mousemove', draw);
+window.addEventListener('mouseup', stopDraw);
+window.addEventListener('touchstart', (e) => { if (!e.target.closest('.side-bar')) { e.preventDefault(); startDraw(e); } }, { passive:false });
+window.addEventListener('touchmove', (e) => { if (!e.target.closest('.side-bar')) { e.preventDefault(); draw(e); } }, { passive:false });
+window.addEventListener('touchend', (e) => { stopDraw(e); });
+
+/* close bars when clicking/tapping outside (pointerdown covers mouse/touch) */
+window.addEventListener('pointerdown', onPointerDownCloseBars);
+
+/* resize */
+window.addEventListener('resize', initCanvasSize);
+
+/* initialize */
+initCanvasSize();
+updateCtxStyles();
+setLayer(0);
+</script>
+</body>
+</html>
